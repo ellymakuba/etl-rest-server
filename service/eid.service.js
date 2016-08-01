@@ -48,6 +48,12 @@ module.exports = function() {
      alupePcrServerIsDown:false,
      alupeCd4ServerIsDown:false
    }
+   /*var promise1=getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier);
+   var promise2=getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier);
+   var promise3=getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate);
+   var promise4=getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier);
+   var promise5=getAlupePcrTestResultsByPatientIdentifier(patientIdentifier);
+   var promiseArray=[promise1,promise2,promise3,promise4,promise5];*/
    return new Promise(function(resolve,reject){
    getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier)
    .then(function(response){
@@ -117,10 +123,11 @@ function getAllEIDTestResultsByPatientUuId(patientUuId,startDate,endDate){
       })
       .then(function(eidResponse){
         resolve(eidResponse);
-        console.log("eid response++++++++++++++++++++++++++++++++++++++++++++++++++++");
+        console.log("eid response+++++++++++++++++++++++++++++++++++++++",eidResponse);
       })
       .catch(function(error){
         reject(error);
+        console.log("getAllEIDTestResultsByPatientUuId called ++++++++++++++++++++++++++++++++++++++++++++++++",error);
         //etlLogger.logRequestError('Error getting eid results. Details:' + error, config.logging.eidFile, config.logging.eidPath);
       })
   });

@@ -10,7 +10,7 @@ module.exports = function(){
         patientHasEverBeenSynced=true;
       }
       if(patientHasEverBeenSynced){
-        if(result.result[0]['TIMESTAMPDIFF(HOUR,date_updated,now())']<6){
+        if(result.result[0]['TIMESTAMPDIFF(HOUR,date_updated,now())']>6){
           obs.getPatientTodaysTestObsByPatientUuId(request.query.patientUuId)
           .then(function(response){
             reply({updatedObs:response});
