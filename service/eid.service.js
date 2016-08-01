@@ -11,61 +11,113 @@ var moment=require('moment');
 var comparison=require('../eid-obs-compare');
 var obsService=require('./openmrs-rest/obs.service');
 var etlLogger = require('../etl-file-logger');
+var db=require('../etl-db');
+var eidResultsSchema=require('../eid-lab-results');
 module.exports = function() {
-  function getEIDResource(path){
-    var link=config.eid.ampath[0].host+':'+config.eid.ampath[0].port+path;
-    return link;
+  function getResource(host,apiKey){
+    var link=host+':'+config.eid.port+config.eid.generalPath;
+    var queryString={
+      apikey:apiKey
+    }
+    var resource={
+      uri:link,
+      query:queryString
+    }
+    return resource;
   }
-  function getEIDCD4PanelResource(path){
-    var link=config.eid.ampath[1].host+':'+config.eid.ampath[1].port+path;
-    return link;
+  function getCd4Resource(host,apiKey){
+    var link=host+':'+config.eid.port+config.eid.cd4PanelPath;
+    var queryString={
+      apikey:apiKey
+    }
+    var resource={
+      uri:link,
+      query:queryString
+    }
+    return resource;
   }
-  function getAlupeResource(path){
-    var link=config.eid.alupe[0].host+':'+config.eid.alupe[0].port+path;
-    return link;
-  }
-  function getAlupeCD4PanelResource(path){
-    var link=config.eid.alupe[1].host+':'+config.eid.alupe[1].port+path;
-    return link;
-  }
- function getEIDTestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
-  var results={
-  }
-  var viralLoadResults=getEIDViralLoadTestResultsByPatientIdentifier(patientIdentifier);
-  var pcrResults=getEIDPCRTestResultsByPatientIdentifier(patientIdentifier);
-  var cd4Panel=getEIDCD4PanelTestResultsByPatientIdentifier(patientIdentifier,startDate,endDate);
-  return new Promise(function(resolve,reject){
-    viralLoadResults.then(function(vlData){
-      results.viralLoad=vlData;
-      return pcrResults
-    })
-    .then(function(pcrData){
-      results.pcr=pcrData;
-      return cd4Panel
-    })
-    .then(function(cd4Data){
-      results.cd4Panel=cd4Data;
-      resolve(results);
-    })
-    .catch(function(error){
-      reject(error);
-     etlLogger.logRequestError('Error getting eid results by patient identifier. Details:' + error, config.logging.eidFile, config.logging.eidPath);
-      //console.error("error getEIDTestResultsByPatientIdentifier +++++++++++++++++++++++++++++++++++++++",error);
-    })
-});
-}
+  function getEIDTestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
+   var results={
+     viralLoad:[],
+     pcr:[],
+     cd4Panel:[],
+     ampathViralLoadServerIsDown:false,
+     ampathPcrServerIsDown:false,
+     ampathCd4ServerIsDown:false,
+     alupeViralLoadServerIsDown:false,
+     alupePcrServerIsDown:false,
+     alupeCd4ServerIsDown:false
+   }
+   return new Promise(function(resolve,reject){
+   getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier)
+   .then(function(response){
+     if(response instanceof Array){
+      results.viralLoad=response;
+     }
+     else{
+       results.ampathViralLoadServerIsDown=true;
+       results.ampathViralLoadErrorMsg=response;
+     }
+     return getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier);
+   })
+   .then(function(response){
+     if(response instanceof Array){
+       results.pcr=response;
+     }
+     else{
+       results.ampathPcrServerIsDown=true;
+       results.ampathPcrErrorMsg=response;
+     }
+     return getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate);
+   })
+   .then(function(response){
+     if(response instanceof Array){
+      results.cd4Panel=response;
+     }
+     else{
+       results.ampathCd4ServerIsDown=true;
+       results.ampathCd4ErrorMsg=response;
+     }
+     return getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier);
+   })
+   .then(function(response){
+     if(response instanceof Array){
+     _.each(response,function(viralLoad){
+       results.viralLoad.push(viralLoad);
+     })
+   }
+   else{
+     results.alupeViralLoadServerIsDown=true;
+     results.AlupeViralLoadErrorMsg=response;
+   }
+     return getAlupePcrTestResultsByPatientIdentifier(patientIdentifier);
+   })
+   .then(function(response){
+     if(response instanceof Array){
+     _.each(response,function(pcr){
+       results.pcr.push(pcr);
+     })
+   }
+   else{
+     results.alupePcrServerIsDown=true;
+     results.AlupePcrErrorMsg=response;
+   }
+     resolve(results);
+   })
+   .catch(function(error){
+     reject(error);
+   })
+ });
+ }
 function getAllEIDTestResultsByPatientUuId(patientUuId,startDate,endDate){
-  var allResults=[];
-    var promiseArray=[];
     return new Promise(function(resolve,reject){
       obsService.getPatientIdentifiers(patientUuId)
       .then(function(response){
-        var promise=getEIDTestResultsByPatientIdentifier(response.identifiers,startDate,endDate);
-        return promise;
+        return getEIDTestResultsByPatientIdentifier(response.identifiers,startDate,endDate)
       })
-      .then(function(response){
-        resolve(response);
-        console.log("response++++++++++++++++++++++++++++++++++++++++++++++++++++",response);
+      .then(function(eidResponse){
+        resolve(eidResponse);
+        console.log("eid response++++++++++++++++++++++++++++++++++++++++++++++++++++");
       })
       .catch(function(error){
         reject(error);
@@ -73,98 +125,103 @@ function getAllEIDTestResultsByPatientUuId(patientUuId,startDate,endDate){
       })
   });
 }
-function getEIDViralLoadTestResultsByPatientIdentifier(patientIdentifier){
-  var viralLoadArray=[];
-  var uri=getEIDResource(config.eid.ampath[0].path);
-  var queryString={
-    apikey:config.eid.ampath[0].apikey,
-    test:2,
-    patientID:patientIdentifier
-  }
-  var alupeUri=getAlupeResource(config.eid.alupe[0].path);
-  var alupeQueryString={
-    apikey:config.eid.alupe[0].apikey,
-    test:2,
-    patientID:patientIdentifier
-  }
+function getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier){
+  var resource=getResource(config.eid.host.ampath,config.eid.ampath.generalApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.test=2;
+  var ampathVLPromise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    var alupeVLPromise=rp.getRequestPromise(alupeQueryString,alupeUri);
-    rp.getRequestPromise(queryString,uri)
-    .then(function(response){
-      viralLoadArray=response.posts;
-      return alupeVLPromise;
-    })
-    .then(function(response){
-      var concatenatedArray =viralLoadArray.concat(response.posts);
-      resolve(concatenatedArray);
-    })
-    .catch(function(error){
-      reject(error);
-      //console.error("getEIDViralLoadTestResultsByPatientIdentifier++++++++++++++++++++++++++++++++++++++++",error);
-       etlLogger.logRequestError('Viral load request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
-    })
+    getResultsFromSingleServer(ampathVLPromise,resolve,reject);
+  });
+}
+function getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier){
+  var resource=getResource(config.eid.host.alupe,config.eid.alupe.generalApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.test=2;
+  var alupeVLPromise=rp.getRequestPromise(queryString,resource.uri);
+  return new Promise(function(resolve,reject){
+    getResultsFromSingleServer(alupeVLPromise,resolve,reject);
+  });
+}
+function getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier){
+  var resource=getResource(config.eid.host.ampath,config.eid.ampath.generalApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.test=1;
+  var ampathPcrPromise=rp.getRequestPromise(queryString,resource.uri);
+  return new Promise(function(resolve,reject){
+    getResultsFromSingleServer(ampathPcrPromise,resolve,reject);
+  });
+}
+function getAlupePcrTestResultsByPatientIdentifier(patientIdentifier){
+  var resource=getResource(config.eid.host.alupe,config.eid.alupe.generalApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.test=1;
+  var alupePcrPromise=rp.getRequestPromise(queryString,resource.uri);
+  return new Promise(function(resolve,reject){
+    getResultsFromSingleServer(alupePcrPromise,resolve,reject);
+  });
+}
+function getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
+  var resource=getCd4Resource(config.eid.host.ampath,config.eid.ampath.cd4ApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.startDate=startDate;
+  queryString.endDate=endDate;
+  var ampathCd4Promise=rp.getRequestPromise(queryString,resource.uri);
+  return new Promise(function(resolve,reject){
+    getResultsFromSingleServer(ampathCd4Promise,resolve,reject);
+  });
+}
+function getAlupeCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
+  var resource=getCd4Resource(config.eid.host.alupe,config.eid.alupe.cd4ApiKey);
+  var queryString=resource.query;
+  queryString.patientID=patientIdentifier;
+  queryString.startDate=startDate;
+  queryString.endDate=endDate;
+  var alupeCd4Promise=rp.getRequestPromise(queryString,resource.uri);
+  return new Promise(function(resolve,reject){
+    getResultsFromSingleServer(alupeCd4Promise,resolve,reject);
+  });
+}
+function getResultsfromMultipleServers(ampathVLPromise,alupeVLPromise,resolve,reject){
+  var payLoadArray=[];
+  ampathVLPromise.then(function(response){
+    payLoadArray=response.posts;
+    return alupeVLPromise;
+  })
+  .then(function(response){
+    var concatenatedArray =payLoadArray.concat(response.posts);
+    resolve(concatenatedArray);
+  })
+  .catch(function(error){
+    reject(error);
+     etlLogger.logRequestError('Viral load request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
   })
 }
-function getEIDPCRTestResultsByPatientIdentifier(patientIdentifier){
-  var pcrArray=[];
-  var uri=getEIDResource(config.eid.ampath[0].path);
-  var queryString={
-    apikey:config.eid.ampath[0].apikey,
-    test:1,
-    patientID:patientIdentifier
-  }
-  var alupeUri=getAlupeResource(config.eid.alupe[0].path);
-  var alupeQueryString={
-    apikey:config.eid.alupe[0].apikey,
-    test:1,
-    patientID:patientIdentifier
-  }
-  return new Promise(function(resolve,reject){
-    var alupePcrPromise=rp.getRequestPromise(alupeQueryString,alupeUri);
-    rp.getRequestPromise(queryString,uri)
-    .then(function(response){
-      pcrArray=response.posts;
-      return alupePcrPromise;
-    })
-    .then(function(response){
-      var concatenatedArray=pcrArray.concat(response.posts);
-      resolve(concatenatedArray);
-    })
-    .catch(function(error){
-      reject(error);
-      //console.error("getEIDPCRTestResultsByPatientIdentifier++++++++++++++++++++++++++++++",error);
-      etlLogger.logRequestError('DNA PCR request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
-    })
+function getResultsFromSingleServer(promise,resolve,reject){
+  var payLoadArray=[];
+  promise.then(function(response){
+    payLoadArray=response.posts;
+    resolve(payLoadArray);
+  })
+  .catch(function(error){
+    resolve(error);
+     //etlLogger.logRequestError('Viral load request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
   })
 }
-function getEIDCD4PanelTestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
-  var uri=module.exports.getEIDCD4PanelResource(config.eid.ampath[1].path);
-  var queryString={
-    apikey:config.eid.ampath[1].apikey,
-    "patientID":patientIdentifier,
-    startDate:startDate,
-    endDate:endDate
-  }
-  var alupeUri=getAlupeResource(config.eid.alupe[1].path);
-  var alupeQueryString={
-    apikey:config.eid.alupe[1].apikey,
-    patientID:patientIdentifier
-  }
-  return new Promise(function(resolve,reject){
-    var cd4Promise=rp.getRequestPromise(queryString,uri);
-    rp.getRequestPromise(queryString,uri)
-    .then(function(response){
-      resolve(response.posts);
-    })
-    .catch(function(error){
-      reject(error);
-      //console.error("getEIDCD4PanelTestResultsByPatientIdentifier++++++++++++++++++++++++++++++++++++",error);
-      etlLogger.logRequestError('CD4 panel request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
-    })
-  })
-}
-
  function getSynchronizedPatientLabResults(request,reply){
+   var queryParts = {
+     columns:[eidResultsSchema.patientLabResultsSchema.parameters[1].name,
+   eidResultsSchema.patientLabResultsSchema.parameters[2].name,
+   eidResultsSchema.patientLabResultsSchema.parameters[3].name],
+     table: eidResultsSchema.patientLabResultsSchema.table.schema+'.'
+     +eidResultsSchema.patientLabResultsSchema.table.tableName +' ',
+     values:[request.query.patientUuId]
+   };
    var promise1=getAllEIDTestResultsByPatientUuId(request.query.patientUuId,request.query.startDate,request.query.endDate);
    var promise2=obsService.getPatientAllTestObsByPatientUuId(request.query.patientUuId);
    var mergedEidResults={};
@@ -181,22 +238,40 @@ function getEIDCD4PanelTestResultsByPatientIdentifier(patientIdentifier,startDat
      return obsService.getPatientTodaysTestObsByPatientUuId(request.query.patientUuId)
      .then(function(response){
        reply({updatedObs:response});
+       saveEidSyncLog(queryParts,function(response){});
      });
-   })   
+   })
    .catch(function(error){
      reject(error);
      etlLogger.logRequestError('SynchronizedPatientLabResults request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
    })
  });
  }
+ function saveEidSyncLog(queryParts,callback){
+   db.insertQueryServer(queryParts,function(result){
+     callback(result);
+   });
+ }
+ function updateEidSyncLog(queryParts,callback){
+   db.updateQueryServer(queryParts,function(result){
+     callback(result);
+   });
+ }
  return {
    getSynchronizedPatientLabResults:getSynchronizedPatientLabResults,
    getAllEIDTestResultsByPatientUuId:getAllEIDTestResultsByPatientUuId,
    getEIDTestResultsByPatientIdentifier:getEIDTestResultsByPatientIdentifier,
-   getEIDViralLoadTestResultsByPatientIdentifier:getEIDViralLoadTestResultsByPatientIdentifier,
-   getEIDResource:getEIDResource,
-   getEIDPCRTestResultsByPatientIdentifier:getEIDPCRTestResultsByPatientIdentifier,
-   getEIDCD4PanelTestResultsByPatientIdentifier:getEIDCD4PanelTestResultsByPatientIdentifier,
-   getEIDCD4PanelResource:getEIDCD4PanelResource
+   getResultsfromMultipleServers:getResultsfromMultipleServers,
+   getResultsFromSingleServer:getResultsFromSingleServer,
+   saveEidSyncLog:saveEidSyncLog,
+   updateEidSyncLog:updateEidSyncLog,
+   getAmpathViralLoadTestResultsByPatientIdentifier:getAmpathViralLoadTestResultsByPatientIdentifier,
+   getAmpathCd4TestResultsByPatientIdentifier:getAmpathCd4TestResultsByPatientIdentifier,
+   getAmpathPcrTestResultsByPatientIdentifier:getAmpathPcrTestResultsByPatientIdentifier,
+   getResource:getResource,
+   getCd4Resource:getCd4Resource,
+   getAlupeViralLoadTestResultsByPatientIdentifier:getAlupeViralLoadTestResultsByPatientIdentifier,
+   getAlupePcrTestResultsByPatientIdentifier:getAlupePcrTestResultsByPatientIdentifier,
+   getAlupeCd4TestResultsByPatientIdentifier:getAlupeCd4TestResultsByPatientIdentifier
  }
  }();
