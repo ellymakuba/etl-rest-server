@@ -48,17 +48,11 @@ module.exports = function() {
      alupePcrServerIsDown:false,
      alupeCd4ServerIsDown:false
    }
-   /*var promise1=getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier);
-   var promise2=getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier);
-   var promise3=getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate);
-   var promise4=getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier);
-   var promise5=getAlupePcrTestResultsByPatientIdentifier(patientIdentifier);
-   var promiseArray=[promise1,promise2,promise3,promise4,promise5];*/
    return new Promise(function(resolve,reject){
    getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier)
    .then(function(response){
-     if(response instanceof Array){
-      results.viralLoad=response;
+     if(response.posts instanceof Array){
+      results.viralLoad=response.posts;
      }
      else{
        results.ampathViralLoadServerIsDown=true;
@@ -67,8 +61,8 @@ module.exports = function() {
      return getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier);
    })
    .then(function(response){
-     if(response instanceof Array){
-       results.pcr=response;
+     if(response.posts instanceof Array){
+       results.pcr=response.posts;
      }
      else{
        results.ampathPcrServerIsDown=true;
@@ -77,8 +71,8 @@ module.exports = function() {
      return getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate);
    })
    .then(function(response){
-     if(response instanceof Array){
-      results.cd4Panel=response;
+     if(response.posts instanceof Array){
+      results.cd4Panel=response.posts;
      }
      else{
        results.ampathCd4ServerIsDown=true;
@@ -87,8 +81,8 @@ module.exports = function() {
      return getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier);
    })
    .then(function(response){
-     if(response instanceof Array){
-     _.each(response,function(viralLoad){
+     if(response.posts instanceof Array){
+     _.each(response.posts,function(viralLoad){
        results.viralLoad.push(viralLoad);
      })
    }
@@ -99,8 +93,8 @@ module.exports = function() {
      return getAlupePcrTestResultsByPatientIdentifier(patientIdentifier);
    })
    .then(function(response){
-     if(response instanceof Array){
-     _.each(response,function(pcr){
+     if(response.posts instanceof Array){
+     _.each(response.posts,function(pcr){
        results.pcr.push(pcr);
      })
    }
@@ -111,7 +105,7 @@ module.exports = function() {
      resolve(results);
    })
    .catch(function(error){
-     reject(error);
+     reject("elly your error is+++++++++++++++++++++++++++++++++++++++",error);
    })
  });
  }
@@ -123,11 +117,9 @@ function getAllEIDTestResultsByPatientUuId(patientUuId,startDate,endDate){
       })
       .then(function(eidResponse){
         resolve(eidResponse);
-        console.log("eid response+++++++++++++++++++++++++++++++++++++++",eidResponse);
       })
       .catch(function(error){
         reject(error);
-        console.log("getAllEIDTestResultsByPatientUuId called ++++++++++++++++++++++++++++++++++++++++++++++++",error);
         //etlLogger.logRequestError('Error getting eid results. Details:' + error, config.logging.eidFile, config.logging.eidPath);
       })
   });
@@ -139,7 +131,8 @@ function getAmpathViralLoadTestResultsByPatientIdentifier(patientIdentifier){
   queryString.test=2;
   var ampathVLPromise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(ampathVLPromise,resolve,reject);
+    setTimeout(resolve(ampathVLPromise),30000);
+    //getResultsFromSingleServer(ampathVLPromise,resolve,reject);
   });
 }
 function getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier){
@@ -149,7 +142,8 @@ function getAlupeViralLoadTestResultsByPatientIdentifier(patientIdentifier){
   queryString.test=2;
   var alupeVLPromise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(alupeVLPromise,resolve,reject);
+    setTimeout(resolve(alupeVLPromise),30000);
+    //getResultsFromSingleServer(alupeVLPromise,resolve,reject);
   });
 }
 function getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier){
@@ -159,7 +153,8 @@ function getAmpathPcrTestResultsByPatientIdentifier(patientIdentifier){
   queryString.test=1;
   var ampathPcrPromise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(ampathPcrPromise,resolve,reject);
+    setTimeout(resolve(ampathPcrPromise),30000);
+    //getResultsFromSingleServer(ampathPcrPromise,resolve,reject);
   });
 }
 function getAlupePcrTestResultsByPatientIdentifier(patientIdentifier){
@@ -169,7 +164,8 @@ function getAlupePcrTestResultsByPatientIdentifier(patientIdentifier){
   queryString.test=1;
   var alupePcrPromise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(alupePcrPromise,resolve,reject);
+    setTimeout(resolve(alupePcrPromise),30000);
+    //getResultsFromSingleServer(alupePcrPromise,resolve,reject);
   });
 }
 function getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
@@ -180,7 +176,8 @@ function getAmpathCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,
   queryString.endDate=endDate;
   var ampathCd4Promise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(ampathCd4Promise,resolve,reject);
+    setTimeout(resolve(ampathCd4Promise),30000);
+    //getResultsFromSingleServer(ampathCd4Promise,resolve,reject);
   });
 }
 function getAlupeCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,endDate){
@@ -191,7 +188,8 @@ function getAlupeCd4TestResultsByPatientIdentifier(patientIdentifier,startDate,e
   queryString.endDate=endDate;
   var alupeCd4Promise=rp.getRequestPromise(queryString,resource.uri);
   return new Promise(function(resolve,reject){
-    getResultsFromSingleServer(alupeCd4Promise,resolve,reject);
+    setTimeout(resolve(alupeCd4Promise),30000);
+    //getResultsFromSingleServer(alupeCd4Promise,resolve,reject);
   });
 }
 function getResultsfromMultipleServers(ampathVLPromise,alupeVLPromise,resolve,reject){
@@ -232,6 +230,7 @@ function getResultsFromSingleServer(promise,resolve,reject){
    var promise1=getAllEIDTestResultsByPatientUuId(request.query.patientUuId,request.query.startDate,request.query.endDate);
    var promise2=obsService.getPatientAllTestObsByPatientUuId(request.query.patientUuId);
    var mergedEidResults={};
+   var eidResponseWithError={};
  return new Promise(function(resolve,reject){
    promise1.then(function(response){
      mergedEidResults=response;
@@ -243,10 +242,8 @@ function getResultsFromSingleServer(promise,resolve,reject){
   })
    .then(function(postResponse){
      reply({updatedObs:postResponse});
-   })
-   .catch(function(error){
-     reject(error);
-     etlLogger.logRequestError('SynchronizedPatientLabResults request error. Details:' + error, config.logging.eidFile, config.logging.eidPath);
+     eidResponseWithError=postResponse;
+     console.log("eidResponseWithError++++++++++++++++++++++++++++++++++++",eidResponseWithError);
    })
  });
  }
