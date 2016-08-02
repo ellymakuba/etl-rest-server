@@ -239,14 +239,10 @@ function getResultsFromSingleServer(promise,resolve,reject){
    })
    .then(function(obsResponse){
      var missingResult=comparison.findAllMissingEidResults(mergedEidResults,obsResponse);
-     if(!_.isEmpty(missingResult)){
-       obsService.postAllObsToAMRS(missingResult,request.query.patientUuId);
-     }
-     return obsService.getPatientTodaysTestObsByPatientUuId(request.query.patientUuId)
-     .then(function(response){
-       reply({updatedObs:response});
-       saveEidSyncLog(queryParts,function(response){});
-     });
+    return obsService.postAllObsToAMRS(missingResult,request.query.patientUuId);
+  })
+   .then(function(postResponse){
+     reply({updatedObs:postResponse});
    })
    .catch(function(error){
      reject(error);
